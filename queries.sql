@@ -1,5 +1,14 @@
 USE harborwing;
 
+-- Pick a demo reservation that has SEVERAL payments AND SEVERAL legs
+SET @res_id = (SELECT rp.reservation_id
+               FROM reservation_payment rp
+               JOIN reservation_leg rl ON rl.reservation_id = rp.reservation_id
+               GROUP BY rp.reservation_id
+               HAVING COUNT(DISTINCT rp.payment_id) > 1 AND COUNT(DISTINCT rl.leg_id) > 1
+               ORDER BY rp.reservation_id LIMIT 1);
+SELECT @res_id AS demo_reservation_id;
+
 -- ROW COUNTS (every table must be >= 50)
 SELECT 'booking_agent' t, COUNT(*) n FROM booking_agent UNION ALL
 SELECT 'passenger', COUNT(*) FROM passenger UNION ALL
@@ -32,7 +41,7 @@ LEFT JOIN (SELECT rl.reservation_id, COUNT(*) AS leg_count,
                   GROUP_CONCAT(fl.flight_number ORDER BY fl.leg_id SEPARATOR ', ') AS flights
            FROM reservation_leg rl JOIN flight_leg fl ON fl.leg_id = rl.leg_id
            GROUP BY rl.reservation_id) lg ON lg.reservation_id = r.reservation_id
-WHERE r.reservation_id = 1;
+WHERE r.reservation_id = @res_id;
 
 -- Q2: Reservations using a particular leg
 SELECT r.reservation_id, r.status_code, CONCAT(p.first_name, ' ', p.last_name) AS passenger
@@ -45,10 +54,18 @@ WHERE rl.leg_id = 1;
 SELECT py.payment_id, py.payment_status_code, py.payment_date, py.amount
 FROM reservation_payment rp
 JOIN payment py ON py.payment_id = rp.payment_id
-WHERE rp.reservation_id = 1;
+WHERE rp.reservation_id = @res_id;
 
 -- Q4: Flight cost for flight + aircraft type + date
 SELECT flight_number, aircraft_type_code, valid_from, valid_to, cost_amount
 FROM flight_cost
 WHERE flight_number = 'HW101' AND aircraft_type_code = 'DH8D'
   AND '2026-08-15' BETWEEN valid_from AND valid_to;
+
+-- BONUS: payments shared by several reservations
+SELECT payment_id, COUNT(*) AS reservations_sharing_it
+FROM reservation_payment
+GROUP BY payment_id
+HAVING COUNT(*) > 1
+ORDER BY payment_id
+LIMIT 10;
